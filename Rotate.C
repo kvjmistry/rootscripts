@@ -3,7 +3,11 @@ This script will take a given set of co-ordinates and rotate them to another
 and displaying the outcome.
 
 experiment: the experiment which you want to rotate the coordinates by: uboone, nova, minverva
-USAGE: root -l 'rotate.C("experiment name")'
+USAGE: root -l 'Rotate.C("experiment name")'
+
+OPTIONS: Added a bool in the uboone code section gsimple. Set to true/false if you need to 
+		 investigate which coo-rdinate system you want to use. 
+
 */
 
 // Functions
@@ -67,13 +71,13 @@ void GetRotation(const std::vector<double> rotmatrix, TRotation &RotDet2Beam, TR
 			RotBeam2Det = RotDet2Beam;
 		}
 
-	  RotDet2Beam.RotateAxes(newX, newY, newZ); // Return the TRotation
+	  RotDet2Beam.RotateAxes(newX, newY, newZ); // Return the TRotation and also inverts
 	}
 
 	RotBeam2Det = RotDet2Beam.Inverse();
 	
 	// Print the rotmatrix
-	int w=10, p=6;
+	int w=10, p=20;
 	std::cout << "\n Rotation matrix from beam to detector coordinates: " << std::setprecision(p) << std::endl;
 	std::cout << " [ " 
 			  << std::setw(w) << RotBeam2Det.XX() << " "
@@ -106,6 +110,7 @@ void GetRotation(const std::vector<double> rotmatrix, TRotation &RotDet2Beam, TR
 
 }
 // ------------------------------------------------------------------------------------------
+// Returns the correct translations from target to detector center
 void GetCoordinates(const std::vector<double> detxyz, TVector3 &TransDetCoord, TVector3 &TransBeamCoord, const TRotation RotBeam2Det, const TRotation RotDet2Beam ){
 
 	// Translation of beam to detector in detector coords given
@@ -142,64 +147,90 @@ void GetCoordinates(const std::vector<double> detxyz, TVector3 &TransDetCoord, T
 // MAIN
 void Rotate(std::string experiment) {
 
-// Variables
-TRotation RotBeam2Det, RotDet2Beam;		// Rotations
-TVector3 TransDetCoord, TransBeamCoord;	// Translations
-std::vector<double> detxyz, rotmatrix;	// Inputs
+	// Variables
+	TRotation RotBeam2Det, RotDet2Beam; 	// Rotations
+	TVector3 TransDetCoord, TransBeamCoord;	// Translations
+	std::vector<double> detxyz, rotmatrix;	// Inputs
+	bool gsimple{false};
 
-/*
-	• detxyxz: Give it an origin of detector in detector coordinates
-	  and a translation from target to detector in beam coordinates (vec of size 6)
-	  							OR
-	  target to detector translation in detector (vec of size 3)
+	/*
+		• detxyxz: Give it an origin of detector in detector coordinates
+		and a translation from target to detector in beam coordinates (vec of size 6)
+									OR
+		target to detector translation in detector (vec of size 3)
 
-	• rotmatrix: Rotation matrix goes from detector coordinate to beam coordinate
-*/
+		• rotmatrix: Rotation matrix goes from beam to detector coordinates
+	*/
 
-// uBooNE coordinates
+	// uBooNE coordinates
 
-if (experiment == "uboone"){
-	std::cout << "--------------------------" << std::endl;
-	std::cout << "      Using uBooNE!" << std::endl;
-	std::cout << "--------------------------" << std::endl;
-	detxyz = {0, 0, 0, 5502, 7259, 67270}; //cm
-	rotmatrix = {
-				0.92103853804025682,		0.0227135048039241207,	0.38880857519374290,
-				0.0000462540012621546684,	0.99829162468141475,	-0.0584279894529063024,
-				-0.38947144863934974,		0.0538324139386641073,	0.91946400794392302};
-}
-// NOvA coordinates
-else if (experiment == "nova"){
-	std::cout << "--------------------------" << std::endl;
-	std::cout << "      Using NOvA!" << std::endl;
-	std::cout << "--------------------------" << std::endl;
-	// detxyz = { 226.9447, 6100.1882, -99113.1313}; //cm
-	detxyz = {0, 0, 0, 1171.74545, -331.51325, 99293.47347}; // locations.txt
-	rotmatrix = {
-				9.9990e-01, -8.2300e-04, -1.4088e-02,
-				3.0533e-06,  9.9831e-01, -5.8103e-02,
-				1.4112e-02,  5.8097e-02,  9.9821e-01};
-}
-// MINERvA coordninates
-else if (experiment == "minerva"){
-	std::cout << "--------------------------" << std::endl;
-	std::cout << "     Using MINERvA!" << std::endl;
-	std::cout << "--------------------------" << std::endl;
-	// detxyz = {  24.86, 6035.0, -102274.0}; //cm
-	detxyz = {  0, 0, 716.95,  -56.28, -53.29317, 103231.9}; // locations.txt
-	rotmatrix = { -0.0582977560, 0, 0 }; // x,y,z rotations
-}
-// Unimplemented
-else {
-	std::cout << "Not implemented the input detector or it is mispelled..." << std::endl;
-	std::cout << "Choose one of: uboone, nova or minerva" << std::endl;
+	if (experiment == "uboone"){
+		std::cout << "--------------------------" << std::endl;
+		std::cout << "      \033[1;31m Using uBooNE!\033[0m" << std::endl;
+		std::cout << "--------------------------" << std::endl;
+		detxyz = {0, 0, 0, 5502, 7259, 67270}; //cm
+		rotmatrix = {
+					0.92103853804025682,		0.0227135048039241207,	0.38880857519374290,
+					0.0000462540012621546684,	0.99829162468141475,	-0.0584279894529063024,
+					-0.38947144863934974,		0.0538324139386641073,	0.91946400794392302};
+		// rotmatrix = { -0.0583497, 0, 0}; // rotation matrix as specified in the GENIE Flux Driver
+		
+		/*
+		// Flux window in detector coordinate system (in cm) -- cuttently used
+		windowBase: [ 500, -500, -3500 ]
+		window1:    [-500,  200, -3500 ]
+		window2:    [ 500, -500,  2000 ]
+		*/
+		// ------------------------------------------------------------------------------------------
+		// Coordinates and rotaion used in gsimple files
+		if (gsimple){
+			std::cout << "\033[1;31m Using GSimple Settings... \033[0m\n "<< std::endl; // colour red
+			detxyz = {0, 0, 0, 5449.9, 7446.1, 67761.1}; //cm
+			rotmatrix = {
+						0.921229, 	0.0226873,	0.388359,
+						0.00136256,	0.998104,	-0.0615396,
+						-0.389019,	0.0572212,	0.919451}; 
+
+			// Flux window in detector coordinates used -- looks equvalent
+			// (x = 5, y = -5, z = -35)
+			// (x = -5, y = 2, z = -35)
+			// (x = 5, y = -5, z = 20)
+		}
+		// ------------------------------------------------------------------------------------------
+
+	}
+	// NOvA coordinates
+	else if (experiment == "nova"){
+		std::cout << "--------------------------" << std::endl;
+		std::cout << "      Using NOvA!" << std::endl;
+		std::cout << "--------------------------" << std::endl;
+		// detxyz = { 226.9447, 6100.1882, -99113.1313}; //cm
+		detxyz = {0, 0, 0, 1171.74545, -331.51325, 99293.47347}; // locations.txt
+		rotmatrix = {
+					9.9990e-01, -8.2300e-04, -1.4088e-02,
+					3.0533e-06,  9.9831e-01, -5.8103e-02,
+					1.4112e-02,  5.8097e-02,  9.9821e-01};
+	}
+	// MINERvA coordninates
+	else if (experiment == "minerva"){
+		std::cout << "--------------------------" << std::endl;
+		std::cout << "     Using MINERvA!" << std::endl;
+		std::cout << "--------------------------" << std::endl;
+		// detxyz = {  24.86, 6035.0, -102274.0}; //cm
+		detxyz = {  0, 0, 716.95,  -56.28, -53.29317, 103231.9}; // locations.txt
+		rotmatrix = { -0.0582977560, 0, 0 }; // x,y,z rotations
+	}
+	// Unimplemented
+	else {
+		std::cout << "Not implemented the input detector or it is mispelled..." << std::endl;
+		std::cout << "Choose one of: uboone, nova or minerva" << std::endl;
+		gSystem->Exit(0); // quit
+	}
+	// Return the TRotation
+	GetRotation(rotmatrix, RotDet2Beam, RotBeam2Det); 
+
+	// Now get the correct coordinates
+	GetCoordinates(detxyz, TransDetCoord, TransBeamCoord, RotBeam2Det, RotDet2Beam );
+
 	gSystem->Exit(0); // quit
-}
-// Return the TRotation
-GetRotation(rotmatrix, RotDet2Beam, RotBeam2Det); 
-
-// Now get the correct coordinates
-GetCoordinates(detxyz, TransDetCoord, TransBeamCoord, RotBeam2Det, RotDet2Beam );
-
-gSystem->Exit(0); // quit
 } // END 
